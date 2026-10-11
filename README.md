@@ -3,36 +3,42 @@
 An experimental Android app that sounds a repeating alarm when an incoming **WhatsApp**, **Microsoft Teams**, or **SMS** notification matches a user-defined rule.
 
 ## Features
-- Add and delete multiple rules.
-- Select WhatsApp, Teams or SMS.
-- Match sender, chat/conversation and message body using case-insensitive substrings. All non-empty predicates must match.
-- Schedules a near-immediate alarm through Android AlarmManager.
+- Create/delete multiple independent rules with **case-insensitive sender, chat and message-text filters**.
+- Choose **Ring immediately** or **At a set time** (24-hour clock, e.g. 06:00).
+- Scheduled alarms trigger at the *next occurrence* of the chosen **local time**: today if still upcoming, tomorrow otherwise. Each trigger schedules a one-off alarm; this is not a daily repeating alarm.
+- A modern, dark-navy/indigo dashboard with status badges, rule cards and a time picker.
+- Independently track each rule's pending alarm; if a rule matches again, its next alarm replaces the previous alarm for that rule. Different rules do not overwrite one another.
+- Preserve older rules (which remain immediate) across upgrades.
+- Restore pending alarms after device reboot or app update. If the original time has already passed during the reboot, the saved alarm triggers soon after startup rather than being silently lost.
 - Repeating default alarm sound, foreground notification, lock-screen alarm activity and dismiss button.
-- On-device storage of rules only, with no internet or account credentials.
-- Test alarm button and permission status display.
+- On-device storage of rules and scheduled alarm metadata only; no internet or account credentials.
+- Test alarm button and permission indicators.
 
 ## Build
-Requires JDK 17 and Android SDK 35. Open the root directory in Android Studio or run `gradle testDebugUnitTest assembleDebug` using Gradle 8.11.1. The GitHub Actions workflow builds and uploads a debug APK under the **Actions** tab when CI succeeds. The Gradle wrapper is not included; Android Studio or a local Gradle installation is required.
+Requires JDK 17 and Android SDK 35. Open the root directory in Android Studio or run `gradle testDebugUnitTest assembleDebug` using Gradle 8.11.1. GitHub Actions builds and uploads the APK under the **Actions** tab. The Gradle wrapper is not included; Android Studio or a local Gradle installation is required.
 
 ## Setup
 1. Install the debug build on an Android device (Android 8 or later).
-2. Open Message Trigger and grant **notification access**.
-3. Grant **Alarms & reminders / exact alarm** access (where available).
+2. Open Message Trigger and grant **notification access**. Sideloaded APKs may require Settings → Apps → Message Trigger → three-dot menu → Allow restricted settings first.
+3. Grant **Alarms & reminders / exact alarm** access where available.
 4. Grant **notification** permission on Android 13 and later.
 5. Grant **full-screen intent** permission on Android 14 and later if available.
 6. Ensure WhatsApp/Teams/SMS message notifications and preview text are enabled.
-7. Create a sender, chat or text rule and try the test alarm.
+7. Create a trigger and use the test alarm.
+
+### Example: a 6 am wake-up alarm from Grace
+Set **Platform** to WhatsApp, **Sender contains** to `Grace`, **Message contains** to `alarm`, select **At a set time**, and choose **06:00**. When the message arrives, the phone schedules one alarm for the next 06:00 in its local time zone. If two different matching rules exist, each is scheduled separately.
 
 ## Limitations
-- WhatsApp and Teams do not expose their inboxes through this app. This app can only inspect *Android notifications* delivered on the device. Muted chats, hidden previews, inaccessible work profiles and platform-specific notification formats can prevent matching.
-- SMS is also sourced from messaging-app notifications, not direct SMS_RECEIVED access; the package name must be supported by `NotificationParser`.
-- Grouped notifications, editing, replay and repeated posts may behave differently across device brands.
-- Alarm reliability depends on Android permissions, battery policies and foreground service restrictions; this is **not** yet verified on physical devices.
-- This is a prototype, not an independently reviewed, production-ready alarm application. Do not depend on it for emergencies or critical alerts.
-- This code has not been compiled or device-tested in this environment.
+- WhatsApp and Teams don't expose their inboxes through this app. Only Android notifications delivered to the phone are inspected. Hidden previews, muted chats, inaccessible work profiles or unfamiliar notification formats can prevent matching.
+- SMS comes from messaging-app notifications rather than direct SMS access; the package must be recognised by `NotificationParser`.
+- Grouped notifications, edits, repeats, Android alarm permissions, power-saving settings and lock-screen behaviour vary by phone.
+- Existing app permissions should normally survive an in-place update when using the same debug signing key; build runners may use different debug signing keys, so you might need to uninstall/reinstall between debug builds (which loses saved rules).
+- This is a prototype, not a production-critical alarm application. Do not rely on it for emergencies.
+- Source changes are tested by GitHub Actions, but real-device reliability still needs testing.
 
-## How it works
-`IncomingNotificationService` receives notifications, `NotificationParser` extracts visible message data, `RuleMatcher` evaluates the locally stored filters, `AlarmScheduler` schedules the alert, and `RingingService` repeats the default alarm sound until dismissed. No message body is persisted.
+## Technical overview
+`IncomingNotificationService` receives notifications, `NotificationParser` extracts visible message data, `RuleMatcher` evaluates rules, `AlarmTime` calculates the next local-time occurrence, and `AlarmScheduler` places one Android alarm per matching rule. Pending alarm metadata is stored by `ScheduledAlarmStore` so `BootReceiver` can restore it after reboot. `RingingService` plays the default alarm sound until dismissed. Message bodies are **not** persisted or uploaded.
 
 ## Licence
 MIT — see LICENSE.
